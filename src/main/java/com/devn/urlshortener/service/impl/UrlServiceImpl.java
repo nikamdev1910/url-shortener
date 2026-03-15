@@ -4,16 +4,20 @@ import com.devn.urlshortener.dto.CreateUrlRequest;
 import com.devn.urlshortener.dto.CreateUrlResponse;
 import com.devn.urlshortener.entity.Url;
 import com.devn.urlshortener.repository.UrlRepository;
+import com.devn.urlshortener.service.RateLimitService;
 import com.devn.urlshortener.service.UrlCacheService;
 import com.devn.urlshortener.service.UrlService;
 import com.devn.urlshortener.util.ShortCodeGenerator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UrlServiceImpl implements UrlService {
@@ -21,6 +25,7 @@ public class UrlServiceImpl implements UrlService {
     private final UrlRepository urlRepository;
     private final ShortCodeGenerator shortCodeGenerator;
     private final UrlCacheService urlCacheService;
+    private final RateLimitService rateLimitService;
 
     @Value("${app.base.url}")
     private String baseUrl;
@@ -28,7 +33,10 @@ public class UrlServiceImpl implements UrlService {
     @Override
     public CreateUrlResponse createShortUrl(CreateUrlRequest request, String userIp) {
 
-        // Step 1 — save URL first with placeholder short code to get the DB id
+        // Step 1 — check rate limit before doing anything
+        rateLimitService.validateRateLimit(userIp);
+
+        // Step 2 — save with placeholder to get DB id
         Url url = Url.builder()
                 .shortCode("tmp")
                 .statsToken(shortCodeGenerator.generateStatsToken())
@@ -41,14 +49,17 @@ public class UrlServiceImpl implements UrlService {
 
         Url saved = urlRepository.save(url);
 
-        // Step 2 — now we have the ID, generate the real short code
+        // Step 3 — generate short code from ID and update
         String shortCode = shortCodeGenerator.generateShortCode(saved.getId());
         saved.setShortCode(shortCode);
         urlRepository.save(saved);
 
+        // Step 4 — cache the newly created URL immediately
+        urlCacheService.cacheUrl(saved);
+
         return CreateUrlResponse.builder()
                 .shortUrl(baseUrl + "/" + shortCode)
-                .statsUrl(baseUrl + "/stats/" + shortCode + "?token=" + saved.getStatsToken())
+                .statsUrl(baseUrl + "/api/stats/" + shortCode + "?token=" + saved.getStatsToken())
                 .longUrl(saved.getLongUrl())
                 .expiresAt(saved.getExpiresAt() != null
                         ? saved.getExpiresAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -82,6 +93,7 @@ public class UrlServiceImpl implements UrlService {
         return url.getLongUrl();
     }
 
+    @Override
     public boolean isExpired(Url url) {
         return url.getExpiresAt() != null && LocalDateTime.now().isAfter(url.getExpiresAt());
     }

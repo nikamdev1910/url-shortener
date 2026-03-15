@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
     }
 
-    // Handles URL not found / expired
+    // Handles URL not found / expired and other generic runtime errors
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(
             RuntimeException ex) {
@@ -42,5 +42,15 @@ public class GlobalExceptionHandler {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    // Handles rate limit exceptions separately with 429 status
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimitException(
+            RateLimitExceededException ex) {
+
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
     }
 }
