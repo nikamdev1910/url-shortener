@@ -1,14 +1,19 @@
 package com.devn.urlshortener.service.impl;
 
+import com.devn.urlshortener.dto.ClickRequest;
 import com.devn.urlshortener.dto.ClickStatsResponse;
 import com.devn.urlshortener.entity.Click;
 import com.devn.urlshortener.entity.Url;
 import com.devn.urlshortener.repository.ClickRepository;
 import com.devn.urlshortener.repository.UrlRepository;
 import com.devn.urlshortener.service.ClickService;
+import com.devn.urlshortener.service.GeoLocationService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -17,29 +22,38 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClickServiceImpl implements ClickService {
 
     private final ClickRepository clickRepository;
     private final UrlRepository urlRepository;
+    private final GeoLocationService geoLocationService;
 
     @Value("${app.base.url}")
     private String baseUrl;
 
+    @Async
     @Override
-    public void recordClick(String shortCode, HttpServletRequest request) {
+    public void recordClick(ClickRequest clickRequest) {
 
-        Url url = urlRepository.findByShortCode(shortCode)
-                .orElseThrow(() -> new RuntimeException("Short URL not found: " + shortCode));
+            Url url = urlRepository.findByShortCode(clickRequest.getShortCode())
+                            .orElseThrow(() -> new RuntimeException(
+                                            "Short URL not found: " + clickRequest.getShortCode()));
 
-        Click click = Click.builder()
-                .url(url)
-                .country(null)   // geo lookup — added later
-                .city(null)      // geo lookup — added later
-                .referrer(request.getHeader("Referer"))
-                .userAgent(request.getHeader("User-Agent"))
-                .build();
+            String country = geoLocationService.getCountry(clickRequest.getIp());
+            String city = geoLocationService.getCity(clickRequest.getIp());
 
-        clickRepository.save(click);
+            Click click = Click.builder()
+                            .url(url)
+                            .country(country)
+                            .city(city)
+                            .referrer(clickRequest.getReferrer())
+                            .userAgent(clickRequest.getUserAgent())
+                            .build();
+
+            clickRepository.save(click);
+            log.info("Click recorded for short code: {} from {}, {}",
+                            clickRequest.getShortCode(), city, country);
     }
 
     @Override

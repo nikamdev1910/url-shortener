@@ -1,11 +1,11 @@
 package com.devn.urlshortener.service;
 
+import com.devn.urlshortener.dto.ClickRequest;
 import com.devn.urlshortener.dto.ClickStatsResponse;
-import jakarta.servlet.http.HttpServletRequest;
 
 public interface ClickService {
 
-    void recordClick(String shortCode, HttpServletRequest request);
+    void recordClick(ClickRequest clickRequest);
 
     ClickStatsResponse getClickStats(String statsToken);
 }
