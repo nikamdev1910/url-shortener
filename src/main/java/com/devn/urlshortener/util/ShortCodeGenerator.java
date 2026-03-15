@@ -1,22 +1,29 @@
 package com.devn.urlshortener.util;
 
+import java.security.SecureRandom;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.sqids.Sqids;
 
 @Component
 public class ShortCodeGenerator {
     private static final String BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int STATS_TOKEN_LENGTH = 12;
-    private final java.security.SecureRandom random = new java.security.SecureRandom();
+    private final SecureRandom random = new SecureRandom();
+    private final Sqids sqids;
+
+    public ShortCodeGenerator(@Value("${app.sqids.alphabet}") String alphabet) {
+        this.sqids = Sqids.builder()
+                .alphabet(alphabet)
+                .minLength(6)
+                .build();
+    }
 
     // Encode DB id to Base62 — sequential, zero collision
     public String generateShortCode(Long id) {
-        if (id == 0) return "0";
-        StringBuilder sb = new StringBuilder();
-        while (id > 0) {
-            sb.append(BASE62.charAt((int)(id % 62)));
-            id /= 62;
-        }
-        return sb.reverse().toString();
+        return sqids.encode(List.of(id));
     }
 
     // Stats token stays random
