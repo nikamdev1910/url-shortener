@@ -1,0 +1,9 @@
+target/
+.git/
+.gitignore
+*.md
+.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+.vscode/
+src/main/resources/application.properties
